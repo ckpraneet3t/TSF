@@ -1,62 +1,28 @@
-import os
-import pandas as pd
-from pprint import pprint
+import csv, gzip
 
-path = "OISST_60E_72E_5N_20N.csv"
-if not os.path.exists(path):
-    raise FileNotFoundError(f"File not found: {path}")
+inp = "OISST_60E_72E_5N_20N.csv"
+out = "cell_60.125_5.125.csv"   # set to "cell_60.125_5.125.csv.gz" and use_gzip=True to get a single compressed file
+target = "60.125_5.125"
+use_gzip = False
 
-df = pd.read_csv(path)
-rows, cols = df.shape
-col_names = df.columns.tolist()
-dtypes = df.dtypes.apply(lambda x: x.name).to_dict()
-non_null = df.notnull().sum().to_dict()
-memory_bytes = int(df.memory_usage(deep=True).sum())
+open_out = (lambda p: gzip.open(p, "wt", encoding="utf-8")) if use_gzip else (lambda p: open(p, "w", newline="", encoding="utf-8"))
 
-date_col = None
-for c in df.columns:
-    if c.lower() in ("date","timestamp","time","day"):
-        date_col = c
-        break
+with open(inp, newline="", encoding="utf-8") as fin, open_out(out) as fout:
+    reader = csv.reader(fin)
+    writer = csv.writer(fout)
+    header = next(reader)
+    writer.writerow(header)
+    lower = [h.lower() for h in header]
+    if "id" in lower:
+        id_idx = lower.index("id")
+    elif "item_id" in lower:
+        id_idx = lower.index("item_id")
+    else:
+        raise SystemExit("no 'id' or 'item_id' column found")
+    count = 0
+    for row in reader:
+        if row and row[id_idx].strip() == target:
+            writer.writerow(row)
+            count += 1
 
-date_info = None
-if date_col:
-    dates = pd.to_datetime(df[date_col], dayfirst=True, errors='coerce')
-    date_info = {
-        "column": date_col,
-        "min": str(dates.min()),
-        "max": str(dates.max()),
-        "na_count": int(dates.isna().sum())
-    }
-
-first_row = df.iloc[0].to_dict()
-last_row = df.iloc[-1].to_dict()
-
-unique_info = {}
-if "id" in df.columns:
-    unique_info["unique_ids"] = int(df["id"].nunique())
-    unique_info["top_10"] = df["id"].value_counts().head(10).to_dict()
-elif "item_id" in df.columns:
-    unique_info["unique_ids"] = int(df["item_id"].nunique())
-    unique_info["top_10"] = df["item_id"].value_counts().head(10).to_dict()
-
-summary = {
-    "path": path,
-    "rows": int(rows),
-    "columns": int(cols),
-    "column_names": col_names,
-    "dtypes": dtypes,
-    "non_null_counts": non_null,
-    "memory_bytes": memory_bytes,
-    "date_info": date_info,
-    "first_row": first_row,
-    "last_row": last_row,
-    "unique_id_info": unique_info
-}
-
-pprint(summary)
-
-# write outputs
-pd.DataFrame([summary]).to_json("OISST_summary.json", orient="records", lines=True)
-df.iloc[[0]].to_csv("OISST_first_row.csv", index=False)
-df.iloc[[-1]].to_csv("OISST_last_row.csv", index=False)
+print(f"wrote {count} rows to {out}")
