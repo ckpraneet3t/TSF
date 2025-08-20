@@ -1,26 +1,19 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
+import matplotlib.dates as mdates
 
-df = pd.read_csv("OISST_60E_72E_5N_20N.csv")
-df[['lon','lat']] = df['id'].str.split('_', expand=True).astype(float)
-df_day = df[df['date'] == "01-Sep-0081"]
-
-pivot = df_day.pivot_table(index='lat', columns='lon', values='sst')
-lons = pivot.columns.values
-lats = pivot.index.values
-sst = pivot.values
-
-plt.figure(figsize=(10,6))
-ax = plt.axes(projection=ccrs.PlateCarree())
-ax.set_extent([60, 72, 5, 20], crs=ccrs.PlateCarree())
-ax.coastlines(resolution="10m")
-ax.add_feature(cfeature.LAND, facecolor="lightgray")
-
-mesh = ax.pcolormesh(lons, lats, sst, transform=ccrs.PlateCarree(), cmap="coolwarm", shading="auto")
-cbar = plt.colorbar(mesh, orientation="horizontal", pad=0.05, aspect=40)
-cbar.set_label("Sea Surface Temperature (°C)")
-
-plt.title("OISST - SST\n1 September 1981")
+df = pd.read_csv("OISST_60.125E_5.125N.csv")
+df['timestamp'] = pd.to_datetime(df['timestamp'], dayfirst=True, errors='coerce')
+df = df.dropna(subset=['timestamp', 'target']).sort_values('timestamp')
+plt.figure(figsize=(12,5))
+plt.plot(df['timestamp'], df['target'], marker='o', linewidth=1.5)
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+plt.xticks(rotation=45, ha='right')
+plt.xlabel("Date")
+plt.ylabel("SST (°C)")
+plt.title(f"SST time series — {df['item_id'].iloc[0] if 'item_id' in df.columns else ''}")
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.savefig("sst_timeseries_60.125_5.125.png", dpi=300)
 plt.show()
